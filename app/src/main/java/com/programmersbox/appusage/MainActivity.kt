@@ -331,12 +331,12 @@ class AppUsage {
             .let { this.appList.addAll(it) }
     }
 
+    @Suppress("DEPRECATION")
     private fun NetworkStatsManager.reloadNetworkStats(
         uid: Int,
         minRange: Long = System.currentTimeMillis() - 1000 * 3600 * 24,
         maxRange: Long = System.currentTimeMillis()
     ): NetworkInfo {
-
         val mobileSentReceived = networkBucket(
             minRange = minRange,
             maxRange = maxRange,
