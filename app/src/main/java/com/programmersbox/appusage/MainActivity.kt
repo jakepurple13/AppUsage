@@ -40,6 +40,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -59,7 +60,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.google.accompanist.drawablepainter.rememberDrawablePainter
 import com.programmersbox.appusage.ui.theme.AppUsageTheme
 import kotlin.time.Duration.Companion.days
@@ -212,7 +212,7 @@ class MainActivity : ComponentActivity() {
                                     Text(
                                         text = "Apps Usage May Not Be Enabled. Please Enable It",
                                         textAlign = TextAlign.Center,
-                                        fontSize = 16.sp,
+                                        style = MaterialTheme.typography.titleLarge,
                                         modifier = Modifier
                                             .padding(16.dp)
                                             .align(Alignment.CenterHorizontally)
