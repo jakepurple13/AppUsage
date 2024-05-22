@@ -336,9 +336,44 @@ class AppUsage {
         minRange: Long = System.currentTimeMillis() - 1000 * 3600 * 24,
         maxRange: Long = System.currentTimeMillis()
     ): NetworkInfo {
-        val mobileSentReceived = NetworkSentReceive(0, 0)
+
+        val mobileSentReceived = networkBucket(
+            minRange = minRange,
+            maxRange = maxRange,
+            uid = uid,
+            connectionType = ConnectivityManager.TYPE_MOBILE,
+            totalAdditionReceived = { totalMobileReceived += it },
+            totalAdditionSent = { totalMobileSent += it }
+        )
+
+        val wifiSentReceived = networkBucket(
+            minRange = minRange,
+            maxRange = maxRange,
+            uid = uid,
+            connectionType = ConnectivityManager.TYPE_WIFI,
+            totalAdditionReceived = { totalWifiReceived += it },
+            totalAdditionSent = { totalWifiSent += it }
+        )
+
+        return NetworkInfo(
+            wifiSent = wifiSentReceived.sent,
+            wifiReceived = wifiSentReceived.received,
+            mobileSent = mobileSentReceived.sent,
+            mobileReceived = mobileSentReceived.received
+        )
+    }
+
+    private fun NetworkStatsManager.networkBucket(
+        minRange: Long = System.currentTimeMillis() - 1000 * 3600 * 24,
+        maxRange: Long = System.currentTimeMillis(),
+        uid: Int,
+        connectionType: Int,
+        totalAdditionReceived: (Long) -> Unit,
+        totalAdditionSent: (Long) -> Unit
+    ): NetworkSentReceive {
+        val sentReceived = NetworkSentReceive(0, 0)
         val mobile = queryDetailsForUid(
-            ConnectivityManager.TYPE_MOBILE,
+            connectionType,
             null,
             minRange,
             maxRange,
@@ -348,36 +383,12 @@ class AppUsage {
         val bucket = NetworkStats.Bucket()
         while (mobile.hasNextBucket()) {
             mobile.getNextBucket(bucket)
-            totalMobileReceived += bucket.rxBytes
-            totalMobileSent += bucket.txBytes
-            mobileSentReceived.sent += bucket.txBytes
-            mobileSentReceived.received += bucket.rxBytes
+            totalAdditionReceived(bucket.rxBytes)
+            totalAdditionSent(bucket.txBytes)
+            sentReceived.sent += bucket.txBytes
+            sentReceived.received += bucket.rxBytes
         }
-
-        val wifiSentReceived = NetworkSentReceive(0, 0)
-        val wifi = queryDetailsForUid(
-            ConnectivityManager.TYPE_WIFI,
-            null,
-            minRange,
-            maxRange,
-            uid
-        )
-
-        val wifiBucket = NetworkStats.Bucket()
-        while (wifi.hasNextBucket()) {
-            wifi.getNextBucket(wifiBucket)
-            totalWifiReceived += wifiBucket.rxBytes
-            totalWifiSent += wifiBucket.txBytes
-            wifiSentReceived.sent += wifiBucket.txBytes
-            wifiSentReceived.received += wifiBucket.rxBytes
-        }
-
-        return NetworkInfo(
-            wifiSent = wifiSentReceived.sent,
-            wifiReceived = wifiSentReceived.received,
-            mobileSent = mobileSentReceived.sent,
-            mobileReceived = mobileSentReceived.received
-        )
+        return sentReceived
     }
 }
 
