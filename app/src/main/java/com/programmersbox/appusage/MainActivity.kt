@@ -291,6 +291,10 @@ class AppUsage {
         minRange: Long = System.currentTimeMillis() - 1000 * 3600 * 24,
         maxRange: Long = System.currentTimeMillis()
     ) {
+        totalWifiSent = 0
+        totalWifiReceived = 0
+        totalMobileSent = 0
+        totalMobileReceived = 0
         val usm = context.getSystemService(UsageStatsManager::class.java)
         val n = context.getSystemService(NetworkStatsManager::class.java)
         val appList = usm.queryAndAggregateUsageStats(
