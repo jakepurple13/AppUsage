@@ -245,10 +245,26 @@ class MainActivity : ComponentActivity() {
                                             )
                                             Text(it.usageDuration)
                                             Text("Last Time Used: " + it.lastUsed)
-                                            Text("Wifi Sent: ${it.networkInfo.wifiSent.formatBytes()}")
-                                            Text("Wifi Received: ${it.networkInfo.wifiReceived.formatBytes()}")
-                                            Text("Mobile Sent: ${it.networkInfo.mobileSent.formatBytes()}")
-                                            Text("Mobile Received: ${it.networkInfo.mobileReceived.formatBytes()}")
+                                            Column {
+                                                Text("Wifi")
+                                                Row(
+                                                    horizontalArrangement = Arrangement.SpaceEvenly,
+                                                    modifier = Modifier.fillMaxWidth()
+                                                ) {
+                                                    Text("Sent: ${it.networkInfo.wifiSent.formatBytes()}")
+                                                    Text("Received: ${it.networkInfo.wifiReceived.formatBytes()}")
+                                                }
+                                            }
+                                            Column {
+                                                Text("Mobile Data")
+                                                Row(
+                                                    horizontalArrangement = Arrangement.SpaceEvenly,
+                                                    modifier = Modifier.fillMaxWidth()
+                                                ) {
+                                                    Text("Sent: ${it.networkInfo.mobileSent.formatBytes()}")
+                                                    Text("Received: ${it.networkInfo.mobileReceived.formatBytes()}")
+                                                }
+                                            }
                                         }
                                     }
                                 )
