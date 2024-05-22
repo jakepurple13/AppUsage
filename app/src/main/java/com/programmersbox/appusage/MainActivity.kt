@@ -2,6 +2,7 @@ package com.programmersbox.appusage
 
 import android.app.usage.NetworkStats
 import android.app.usage.NetworkStatsManager
+import android.app.usage.StorageStatsManager
 import android.app.usage.UsageStats
 import android.app.usage.UsageStatsManager
 import android.content.Context
@@ -19,26 +20,38 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.Card
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,51 +60,95 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.accompanist.drawablepainter.rememberDrawablePainter
 import com.programmersbox.appusage.ui.theme.AppUsageTheme
+import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 
 
 class MainActivity : ComponentActivity() {
-    val appUsage = AppUsage()
+    private val appUsage = AppUsage()
 
-    @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+    @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        appUsage.reloadData(this)
-        /*val s = getSystemService(StorageStatsManager::class.java)
-        val n = getSystemService(NetworkStatsManager::class.java)
-        val a = getSystemService(AppOpsManager::class.java)
-        val c = getSystemService(UsageStatsManager::class.java)
-        c.queryEventStats(UsageStatsManager.INTERVAL_BEST, 0, System.currentTimeMillis())
-            .forEach {
-                it.totalTime
-            }*/
         setContent {
             AppUsageTheme {
+
+                var showDatePicker by remember { mutableStateOf(false) }
+                val datePickerState = rememberDatePickerState()
+
+                if (showDatePicker) {
+                    DatePickerDialog(
+                        onDismissRequest = { showDatePicker = false },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    showDatePicker = false
+                                }
+                            ) {
+                                Text("OK")
+                            }
+                        }
+                    ) {
+                        DatePicker(datePickerState)
+                    }
+                }
+
                 Scaffold(
                     topBar = {
-                        TopAppBar(
-                            title = { Text("App Usage") }
-                        )
+                        Surface {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                CenterAlignedTopAppBar(
+                                    title = {
+                                        Text(
+                                            "Total App Usage Time:\n${getDurationBreakdown(appUsage.totalTime)}",
+                                            textAlign = TextAlign.Center
+                                        )
+                                    },
+                                    /*actions = {
+                                        IconButton(
+                                            onClick = { showDatePicker = true }
+                                        ) {
+                                            Icon(Icons.Default.DateRange, null)
+                                        }
+                                    }*/
+                                )
+                                Text(
+                                    "Total Network: ${appUsage.totalNetworkStats.formatBytes()}",
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text("Wifi Sent: ${appUsage.totalWifiSent.formatBytes()}")
+                                        Text("Wifi Received: ${appUsage.totalWifiReceived.formatBytes()}")
+                                    }
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text("Mobile Sent: ${appUsage.totalMobileSent.formatBytes()}")
+                                        Text("Mobile Received: ${appUsage.totalMobileReceived.formatBytes()}")
+                                    }
+                                }
+                            }
+                        }
                     },
                     modifier = Modifier.fillMaxSize()
                 ) { innerPadding ->
                     LazyColumn(
                         contentPadding = innerPadding,
                         verticalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.fillMaxSize()
                     ) {
-                        stickyHeader {
-                            CenterAlignedTopAppBar(
-                                title = {
-                                    Text("Total Time: ${getDurationBreakdown(appUsage.totalTime)}")
-                                },
-                                windowInsets = WindowInsets(0.dp)
-                            )
-                        }
-
                         if (appUsage.appList.isEmpty()) {
                             item {
                                 Card(
@@ -149,12 +206,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        appUsage.reloadData(this)
+        appUsage.reloadData(
+            context = this,
+            minRange = System.currentTimeMillis() - 7.days.inWholeMilliseconds
+        )
     }
 }
 
 class AppUsage {
-
     var totalTime by mutableLongStateOf(0)
     val appList = mutableStateListOf<AppInfo>()
 
@@ -170,15 +229,18 @@ class AppUsage {
 
     private val mDateFormat = SimpleDateFormat.getDateTimeInstance()
 
-    fun reloadData(context: Context) {
+    fun reloadData(
+        context: Context,
+        minRange: Long = System.currentTimeMillis() - 1000 * 3600 * 24,
+        maxRange: Long = System.currentTimeMillis()
+    ) {
         val usm = context.getSystemService(UsageStatsManager::class.java)
         val n = context.getSystemService(NetworkStatsManager::class.java)
         val appList = usm.queryUsageStats(
             UsageStatsManager.INTERVAL_BEST,
-            System.currentTimeMillis() - 1000 * 3600 * 24,
-            System.currentTimeMillis()
-        )
-            .filter { it.totalTimeInForeground > 0 || it.totalTimeVisible > 0 }
+            minRange,
+            maxRange
+        ).filter { it.totalTimeInForeground > 0 }
 
         totalTime = appList.sumOf { obj: UsageStats -> obj.totalTimeInForeground }
 
@@ -212,13 +274,17 @@ class AppUsage {
             .let { this.appList.addAll(it) }
     }
 
-    fun NetworkStatsManager.reloadNetworkStats(uid: Int): NetworkInfo {
+    private fun NetworkStatsManager.reloadNetworkStats(
+        uid: Int,
+        minRange: Long = System.currentTimeMillis() - 1000 * 3600 * 24,
+        maxRange: Long = System.currentTimeMillis()
+    ): NetworkInfo {
         var mobileSentReceived: Pair<Long, Long>? = null
         val mobile = queryDetailsForUid(
             ConnectivityManager.TYPE_MOBILE,
             null,
-            System.currentTimeMillis() - 1000 * 3600 * 24,
-            System.currentTimeMillis(),
+            minRange,
+            maxRange,
             uid
         )
 
@@ -234,8 +300,8 @@ class AppUsage {
         val wifi = queryDetailsForUid(
             ConnectivityManager.TYPE_WIFI,
             null,
-            System.currentTimeMillis() - 1000 * 3600 * 24,
-            System.currentTimeMillis(),
+            minRange,
+            maxRange,
             uid
         )
 
