@@ -2,7 +2,6 @@ package com.programmersbox.appusage
 
 import android.app.usage.NetworkStats
 import android.app.usage.NetworkStatsManager
-import android.app.usage.StorageStatsManager
 import android.app.usage.UsageStats
 import android.app.usage.UsageStatsManager
 import android.content.Context
@@ -16,12 +15,13 @@ import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.animation.core.AnimationVector1D
+import androidx.compose.animation.core.TwoWayConverter
+import androidx.compose.animation.core.animateValueAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -29,13 +29,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material3.BottomAppBar
+import androidx.compose.material3.BottomAppBarDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.OutlinedCard
@@ -43,18 +45,18 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberDateRangePickerState
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -69,15 +71,24 @@ import kotlin.time.Duration.Companion.minutes
 class MainActivity : ComponentActivity() {
     private val appUsage = AppUsage()
 
+    private var beginTime by mutableLongStateOf(System.currentTimeMillis() - 1000 * 3600 * 24)
+    private var endTime by mutableLongStateOf(System.currentTimeMillis())
+
+    private val mDateFormat = SimpleDateFormat.getDateInstance()
+
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             AppUsageTheme {
+                val bottomAppBarScrollBehavior = BottomAppBarDefaults.exitAlwaysScrollBehavior()
 
                 var showDatePicker by remember { mutableStateOf(false) }
-                val datePickerState = rememberDatePickerState()
+                val datePickerState = rememberDateRangePickerState(
+                    initialSelectedStartDateMillis = beginTime,
+                    initialSelectedEndDateMillis = endTime
+                )
 
                 if (showDatePicker) {
                     DatePickerDialog(
@@ -86,39 +97,58 @@ class MainActivity : ComponentActivity() {
                             TextButton(
                                 onClick = {
                                     showDatePicker = false
+                                    datePickerState.selectedStartDateMillis
+                                        ?.let { beginTime = it + 1.days.inWholeMilliseconds }
+                                    datePickerState.selectedEndDateMillis
+                                        ?.let { endTime = it + 1.days.inWholeMilliseconds }
+
+                                    appUsage.reloadData(
+                                        context = this,
+                                        minRange = beginTime,
+                                        maxRange = endTime
+                                    )
                                 }
                             ) {
-                                Text("OK")
+                                Text("Save")
                             }
                         }
                     ) {
-                        DatePicker(datePickerState)
+                        DateRangePicker(
+                            datePickerState,
+                            modifier = Modifier.padding(top = 16.dp)
+                        )
                     }
                 }
 
                 Scaffold(
                     topBar = {
                         Surface {
+                            val breakdown = getDurationBreakdown(appUsage.totalTime.animate())
+                            val totalNetwork = appUsage.totalNetworkStats
+                                .animate().formatBytes()
+                            val wifiSent = appUsage.totalWifiSent
+                                .animate().formatBytes()
+                            val wifiReceived = appUsage.totalWifiReceived
+                                .animate().formatBytes()
+                            val mobileSent = appUsage.totalMobileSent
+                                .animate().formatBytes()
+                            val mobileReceived = appUsage.totalMobileReceived
+                                .animate().formatBytes()
+
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                             ) {
                                 CenterAlignedTopAppBar(
                                     title = {
                                         Text(
-                                            "Total App Usage Time:\n${getDurationBreakdown(appUsage.totalTime)}",
+                                            "Total App Usage Time:\n$breakdown",
                                             textAlign = TextAlign.Center
                                         )
-                                    },
-                                    /*actions = {
-                                        IconButton(
-                                            onClick = { showDatePicker = true }
-                                        ) {
-                                            Icon(Icons.Default.DateRange, null)
-                                        }
-                                    }*/
+                                    }
                                 )
+
                                 Text(
-                                    "Total Network: ${appUsage.totalNetworkStats.formatBytes()}",
+                                    "Total Network: $totalNetwork",
                                 )
                                 Row(
                                     modifier = Modifier.fillMaxWidth()
@@ -127,21 +157,44 @@ class MainActivity : ComponentActivity() {
                                         horizontalAlignment = Alignment.CenterHorizontally,
                                         modifier = Modifier.weight(1f)
                                     ) {
-                                        Text("Wifi Sent: ${appUsage.totalWifiSent.formatBytes()}")
-                                        Text("Wifi Received: ${appUsage.totalWifiReceived.formatBytes()}")
+                                        Text("Wifi Sent: $wifiSent")
+                                        Text("Wifi Received: $wifiReceived")
                                     }
                                     Column(
                                         horizontalAlignment = Alignment.CenterHorizontally,
                                         modifier = Modifier.weight(1f)
                                     ) {
-                                        Text("Mobile Sent: ${appUsage.totalMobileSent.formatBytes()}")
-                                        Text("Mobile Received: ${appUsage.totalMobileReceived.formatBytes()}")
+                                        Text("Mobile Sent: $mobileSent")
+                                        Text("Mobile Received: $mobileReceived")
                                     }
                                 }
                             }
                         }
                     },
-                    modifier = Modifier.fillMaxSize()
+                    bottomBar = {
+                        BottomAppBar(
+                            scrollBehavior = bottomAppBarScrollBehavior,
+                            floatingActionButton = {
+                                FloatingActionButton(
+                                    onClick = {
+                                        showDatePicker = true
+                                    }
+                                ) { Icon(Icons.Default.DateRange, null) }
+                            },
+                            actions = {
+                                Text(
+                                    mDateFormat.format(beginTime.animate())
+                                            + " - "
+                                            + mDateFormat.format(endTime.animate()),
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        )
+                    },
+                    modifier = Modifier
+                        .nestedScroll(bottomAppBarScrollBehavior.nestedScrollConnection)
+                        .fillMaxSize()
                 ) { innerPadding ->
                     LazyColumn(
                         contentPadding = innerPadding,
@@ -169,7 +222,9 @@ class MainActivity : ComponentActivity() {
                         }
 
                         items(appUsage.appList) {
-                            OutlinedCard {
+                            OutlinedCard(
+                                modifier = Modifier.animateItem()
+                            ) {
                                 ListItem(
                                     headlineContent = { Text(it.appName) },
                                     leadingContent = {
@@ -178,7 +233,7 @@ class MainActivity : ComponentActivity() {
                                             null
                                         )
                                     },
-                                    overlineContent = { Text("Last Time Used: " + it.lastUsed) },
+                                    overlineContent = { Text(it.usageStats.packageName) },
                                     trailingContent = { Text("${it.usagePercentage}%") },
                                     supportingContent = {
                                         Column(
@@ -189,6 +244,7 @@ class MainActivity : ComponentActivity() {
                                                 modifier = Modifier.fillMaxWidth()
                                             )
                                             Text(it.usageDuration)
+                                            Text("Last Time Used: " + it.lastUsed)
                                             Text("Wifi Sent: ${it.networkInfo.wifiSent.formatBytes()}")
                                             Text("Wifi Received: ${it.networkInfo.wifiReceived.formatBytes()}")
                                             Text("Mobile Sent: ${it.networkInfo.mobileSent.formatBytes()}")
@@ -208,7 +264,8 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         appUsage.reloadData(
             context = this,
-            minRange = System.currentTimeMillis() - 7.days.inWholeMilliseconds
+            minRange = beginTime,
+            maxRange = endTime
         )
     }
 }
@@ -236,19 +293,19 @@ class AppUsage {
     ) {
         val usm = context.getSystemService(UsageStatsManager::class.java)
         val n = context.getSystemService(NetworkStatsManager::class.java)
-        val appList = usm.queryUsageStats(
-            UsageStatsManager.INTERVAL_BEST,
+        val appList = usm.queryAndAggregateUsageStats(
             minRange,
             maxRange
-        ).filter { it.totalTimeInForeground > 0 }
+        ).filter { it.value.totalTimeInForeground > 0 }
 
-        totalTime = appList.sumOf { obj: UsageStats -> obj.totalTimeInForeground }
+        totalTime = appList.values.sumOf { obj: UsageStats -> obj.totalTimeInForeground }
 
         val pm = context.packageManager
 
         this.appList.clear()
 
         appList
+            .values
             .sortedByDescending { it.totalTimeInForeground }
             .mapNotNull {
                 runCatching {
@@ -369,3 +426,10 @@ fun Long.formatBytes(): String {
 
     return decimalFormat.format(bytesRemaining) + " " + units[unitIndex]
 }
+
+@Composable
+fun Long.animate() = animateValueAsState(
+    this,
+    TwoWayConverter({ AnimationVector1D(it.toFloat()) }, { it.value.toLong() }),
+    label = ""
+).value
