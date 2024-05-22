@@ -336,7 +336,7 @@ class AppUsage {
         minRange: Long = System.currentTimeMillis() - 1000 * 3600 * 24,
         maxRange: Long = System.currentTimeMillis()
     ): NetworkInfo {
-        var mobileSentReceived: Pair<Long, Long>? = null
+        val mobileSentReceived = NetworkSentReceive(0, 0)
         val mobile = queryDetailsForUid(
             ConnectivityManager.TYPE_MOBILE,
             null,
@@ -350,10 +350,11 @@ class AppUsage {
             mobile.getNextBucket(bucket)
             totalMobileReceived += bucket.rxBytes
             totalMobileSent += bucket.txBytes
-            mobileSentReceived = bucket.rxBytes to bucket.txBytes
+            mobileSentReceived.sent += bucket.txBytes
+            mobileSentReceived.received += bucket.rxBytes
         }
 
-        var wifiSentReceived: Pair<Long, Long>? = null
+        val wifiSentReceived = NetworkSentReceive(0, 0)
         val wifi = queryDetailsForUid(
             ConnectivityManager.TYPE_WIFI,
             null,
@@ -367,17 +368,15 @@ class AppUsage {
             wifi.getNextBucket(wifiBucket)
             totalWifiReceived += wifiBucket.rxBytes
             totalWifiSent += wifiBucket.txBytes
-            wifiSentReceived = wifiBucket.rxBytes to wifiBucket.txBytes
+            wifiSentReceived.sent += wifiBucket.txBytes
+            wifiSentReceived.received += wifiBucket.rxBytes
         }
 
-        if (wifiSentReceived == null) wifiSentReceived = 0L to 0L
-        if (mobileSentReceived == null) mobileSentReceived = 0L to 0L
-
         return NetworkInfo(
-            wifiSent = wifiSentReceived.first,
-            wifiReceived = wifiSentReceived.second,
-            mobileSent = mobileSentReceived.first,
-            mobileReceived = mobileSentReceived.second
+            wifiSent = wifiSentReceived.sent,
+            wifiReceived = wifiSentReceived.received,
+            mobileSent = mobileSentReceived.sent,
+            mobileReceived = mobileSentReceived.received
         )
     }
 }
@@ -411,6 +410,11 @@ data class NetworkInfo(
     val wifiReceived: Long,
     val mobileSent: Long,
     val mobileReceived: Long
+)
+
+data class NetworkSentReceive(
+    var sent: Long,
+    var received: Long
 )
 
 fun Long.formatBytes(): String {
