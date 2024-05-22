@@ -372,7 +372,7 @@ class AppUsage {
         totalAdditionSent: (Long) -> Unit
     ): NetworkSentReceive {
         val sentReceived = NetworkSentReceive(0, 0)
-        val mobile = queryDetailsForUid(
+        val stats = queryDetailsForUid(
             connectionType,
             null,
             minRange,
@@ -381,8 +381,8 @@ class AppUsage {
         )
 
         val bucket = NetworkStats.Bucket()
-        while (mobile.hasNextBucket()) {
-            mobile.getNextBucket(bucket)
+        while (stats.hasNextBucket()) {
+            stats.getNextBucket(bucket)
             totalAdditionReceived(bucket.rxBytes)
             totalAdditionSent(bucket.txBytes)
             sentReceived.sent += bucket.txBytes
