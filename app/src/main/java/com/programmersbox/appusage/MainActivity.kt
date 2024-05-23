@@ -2,6 +2,7 @@ package com.programmersbox.appusage
 
 import android.app.usage.NetworkStats
 import android.app.usage.NetworkStatsManager
+import android.app.usage.UsageEvents
 import android.app.usage.UsageStats
 import android.app.usage.UsageStatsManager
 import android.content.Context
@@ -15,6 +16,7 @@ import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.TwoWayConverter
 import androidx.compose.animation.core.animateValueAsState
@@ -33,6 +35,7 @@ import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.BottomAppBarDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -54,22 +57,28 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.lifecycleScope
 import com.google.accompanist.drawablepainter.rememberDrawablePainter
 import com.programmersbox.appusage.ui.theme.AppUsageTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 
-
 class MainActivity : ComponentActivity() {
     private val appUsage = AppUsage()
+
+    private var isLoading by mutableStateOf(true)
 
     private var beginTime by mutableLongStateOf(System.currentTimeMillis() - 1000 * 3600 * 24)
     private var endTime by mutableLongStateOf(System.currentTimeMillis())
@@ -82,6 +91,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             AppUsageTheme {
+                val scope = rememberCoroutineScope()
                 val bottomAppBarScrollBehavior = BottomAppBarDefaults.exitAlwaysScrollBehavior()
 
                 var showDatePicker by remember { mutableStateOf(false) }
@@ -102,11 +112,14 @@ class MainActivity : ComponentActivity() {
                                     datePickerState.selectedEndDateMillis
                                         ?.let { endTime = it + 1.days.inWholeMilliseconds }
 
-                                    appUsage.reloadData(
-                                        context = this,
-                                        minRange = beginTime,
-                                        maxRange = endTime
-                                    )
+                                    isLoading = true
+                                    scope.launch {
+                                        appUsage.reloadData(
+                                            context = this@MainActivity,
+                                            minRange = beginTime,
+                                            maxRange = endTime
+                                        )
+                                    }.invokeOnCompletion { isLoading = false }
                                 }
                             ) {
                                 Text("Save")
@@ -202,6 +215,12 @@ class MainActivity : ComponentActivity() {
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.fillMaxSize()
                     ) {
+                        item {
+                            AnimatedVisibility(isLoading) {
+                                CircularProgressIndicator()
+                            }
+                        }
+
                         if (appUsage.appList.isEmpty()) {
                             item {
                                 Card(
@@ -221,54 +240,11 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        items(appUsage.appList) {
-                            OutlinedCard(
-                                modifier = Modifier.animateItem()
-                            ) {
-                                ListItem(
-                                    headlineContent = { Text(it.appName) },
-                                    leadingContent = {
-                                        Image(
-                                            rememberDrawablePainter(it.icon),
-                                            null
-                                        )
-                                    },
-                                    overlineContent = { Text(it.usageStats.packageName) },
-                                    trailingContent = { Text("${it.usagePercentage}%") },
-                                    supportingContent = {
-                                        Column(
-                                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            LinearProgressIndicator(
-                                                progress = { it.usagePercentage.toFloat() / 100 },
-                                                modifier = Modifier.fillMaxWidth()
-                                            )
-                                            Text(it.usageDuration)
-                                            Text("Last Time Used: " + it.lastUsed)
-                                            Column {
-                                                Text("Wifi")
-                                                Row(
-                                                    horizontalArrangement = Arrangement.SpaceEvenly,
-                                                    modifier = Modifier.fillMaxWidth()
-                                                ) {
-                                                    Text("Sent: ${it.networkInfo.wifiSent.formatBytes()}")
-                                                    Text("Received: ${it.networkInfo.wifiReceived.formatBytes()}")
-                                                }
-                                            }
-                                            Column {
-                                                Text("Mobile Data")
-                                                Row(
-                                                    horizontalArrangement = Arrangement.SpaceEvenly,
-                                                    modifier = Modifier.fillMaxWidth()
-                                                ) {
-                                                    Text("Sent: ${it.networkInfo.mobileSent.formatBytes()}")
-                                                    Text("Received: ${it.networkInfo.mobileReceived.formatBytes()}")
-                                                }
-                                            }
-                                        }
-                                    }
-                                )
-                            }
+                        items(
+                            appUsage.appList,
+                            key = { it.usageStats.packageName }
+                        ) {
+                            AppItem(it, Modifier.animateItem())
                         }
                     }
                 }
@@ -278,10 +254,65 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        appUsage.reloadData(
-            context = this,
-            minRange = beginTime,
-            maxRange = endTime
+        lifecycleScope.launch(Dispatchers.IO) {
+            isLoading = true
+            appUsage.reloadData(
+                context = this@MainActivity,
+                minRange = beginTime,
+                maxRange = endTime
+            )
+        }.invokeOnCompletion { isLoading = false }
+    }
+}
+
+@Composable
+private fun AppItem(appInfo: AppInfo, modifier: Modifier = Modifier) {
+    OutlinedCard(
+        modifier = modifier
+    ) {
+        ListItem(
+            headlineContent = { Text(appInfo.appName) },
+            leadingContent = {
+                Image(
+                    rememberDrawablePainter(appInfo.icon),
+                    null
+                )
+            },
+            overlineContent = { Text(appInfo.usageStats.packageName) },
+            trailingContent = { Text("${appInfo.usagePercentage}%") },
+            supportingContent = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    LinearProgressIndicator(
+                        progress = { appInfo.usagePercentage.toFloat() / 100 },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(appInfo.usageDuration)
+                    Text("Last Time Used: " + appInfo.lastUsed)
+                    Column {
+                        Text("Wifi")
+                        Row(
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Sent: ${appInfo.networkInfo.wifiSent.formatBytes()}")
+                            Text("Received: ${appInfo.networkInfo.wifiReceived.formatBytes()}")
+                        }
+                    }
+                    Column {
+                        Text("Mobile Data")
+                        Row(
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Sent: ${appInfo.networkInfo.mobileSent.formatBytes()}")
+                            Text("Received: ${appInfo.networkInfo.mobileReceived.formatBytes()}")
+                        }
+                    }
+                    Text("Times opened: ${appInfo.timesOpened}")
+                }
+            }
         )
     }
 }
@@ -302,7 +333,7 @@ class AppUsage {
 
     private val mDateFormat = SimpleDateFormat.getDateTimeInstance()
 
-    fun reloadData(
+    suspend fun reloadData(
         context: Context,
         minRange: Long = System.currentTimeMillis() - 1000 * 3600 * 24,
         maxRange: Long = System.currentTimeMillis()
@@ -313,6 +344,9 @@ class AppUsage {
         totalMobileReceived = 0
         val usm = context.getSystemService(UsageStatsManager::class.java)
         val n = context.getSystemService(NetworkStatsManager::class.java)
+
+        val names = usm.timesOpened(minRange, maxRange)
+
         val appList = usm.queryAndAggregateUsageStats(
             minRange,
             maxRange
@@ -321,8 +355,6 @@ class AppUsage {
         totalTime = appList.values.sumOf { obj: UsageStats -> obj.totalTimeInForeground }
 
         val pm = context.packageManager
-
-        this.appList.clear()
 
         appList
             .values
@@ -342,17 +374,21 @@ class AppUsage {
                         usagePercentage = usagePercentage,
                         lastUsed = mDateFormat.format(it.lastTimeUsed),
                         networkInfo = networkInfo,
+                        timesOpened = names[it.packageName] ?: 0,
                         usageStats = it
                     )
                 }
                     .onFailure { it.printStackTrace() }
                     .getOrNull()
             }
-            .let { this.appList.addAll(it) }
+            .let {
+                this.appList.clear()
+                this.appList.addAll(it)
+            }
     }
 
     @Suppress("DEPRECATION")
-    private fun NetworkStatsManager.reloadNetworkStats(
+    private suspend fun NetworkStatsManager.reloadNetworkStats(
         uid: Int,
         minRange: Long = System.currentTimeMillis() - 1000 * 3600 * 24,
         maxRange: Long = System.currentTimeMillis()
@@ -383,7 +419,7 @@ class AppUsage {
         )
     }
 
-    private fun NetworkStatsManager.networkBucket(
+    private suspend fun NetworkStatsManager.networkBucket(
         minRange: Long = System.currentTimeMillis() - 1000 * 3600 * 24,
         maxRange: Long = System.currentTimeMillis(),
         uid: Int,
@@ -392,13 +428,15 @@ class AppUsage {
         totalAdditionSent: (Long) -> Unit
     ): NetworkSentReceive {
         val sentReceived = NetworkSentReceive(0, 0)
-        val stats = queryDetailsForUid(
-            connectionType,
-            null,
-            minRange,
-            maxRange,
-            uid
-        )
+        val stats = withContext(Dispatchers.IO) {
+            queryDetailsForUid(
+                connectionType,
+                null,
+                minRange,
+                maxRange,
+                uid
+            )
+        }
 
         val bucket = NetworkStats.Bucket()
         while (stats.hasNextBucket()) {
@@ -409,6 +447,30 @@ class AppUsage {
             sentReceived.received += bucket.rxBytes
         }
         return sentReceived
+    }
+
+    /**
+     * This does technically work, it just doesn't show it in real time.
+     * Only on next open.
+     */
+    private fun UsageStatsManager.timesOpened(
+        minRange: Long = System.currentTimeMillis() - 1000 * 3600 * 24,
+        maxRange: Long = System.currentTimeMillis()
+    ): Map<String, Int> {
+        val names = mutableMapOf<String, Int>()
+        val events = queryEvents(minRange, maxRange)
+        val ev = UsageEvents.Event()
+        while (events.hasNextEvent()) {
+            events.getNextEvent(ev)
+            if (ev.eventType == UsageEvents.Event.ACTIVITY_RESUMED) {
+                if (names.containsKey(ev.packageName)) {
+                    names[ev.packageName] = names[ev.packageName]!! + 1
+                } else {
+                    names[ev.packageName] = 1
+                }
+            }
+        }
+        return names
     }
 }
 
@@ -432,6 +494,7 @@ data class AppInfo(
     val usageDuration: String,
     val usagePercentage: Long,
     val lastUsed: String,
+    val timesOpened: Int,
     val networkInfo: NetworkInfo,
     val usageStats: UsageStats
 )
