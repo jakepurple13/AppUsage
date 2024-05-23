@@ -8,6 +8,7 @@ import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.drawable.Drawable
+import android.icu.text.DateFormat
 import android.icu.text.DecimalFormat
 import android.icu.text.SimpleDateFormat
 import android.net.ConnectivityManager
@@ -31,6 +32,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.BottomAppBarDefaults
 import androidx.compose.material3.Card
@@ -38,9 +40,13 @@ import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DateRangePicker
+import androidx.compose.material3.DateRangePickerState
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
@@ -70,6 +76,7 @@ import com.programmersbox.appusage.ui.theme.AppUsageTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Date
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.milliseconds
@@ -77,13 +84,12 @@ import kotlin.time.Duration.Companion.minutes
 
 class MainActivity : ComponentActivity() {
     private val appUsage = AppUsage()
-
-    private var isLoading by mutableStateOf(true)
-
-    private var beginTime by mutableLongStateOf(System.currentTimeMillis() - 1000 * 3600 * 24)
-    private var endTime by mutableLongStateOf(System.currentTimeMillis())
-
     private val mDateFormat = SimpleDateFormat.getDateInstance()
+
+    private var beginTime by mutableLongStateOf(
+        mDateFormat.let { justDay -> justDay.parse(justDay.format(Date())) }.time
+    )
+    private var endTime by mutableLongStateOf(System.currentTimeMillis())
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -112,17 +118,23 @@ class MainActivity : ComponentActivity() {
                                     datePickerState.selectedEndDateMillis
                                         ?.let { endTime = it + 1.days.inWholeMilliseconds }
 
-                                    isLoading = true
                                     scope.launch {
                                         appUsage.reloadData(
                                             context = this@MainActivity,
                                             minRange = beginTime,
                                             maxRange = endTime
                                         )
-                                    }.invokeOnCompletion { isLoading = false }
+                                    }
                                 }
                             ) {
                                 Text("Save")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(
+                                onClick = { showDatePicker = false }
+                            ) {
+                                Text("Cancel")
                             }
                         }
                     ) {
@@ -157,6 +169,33 @@ class MainActivity : ComponentActivity() {
                                             "Total App Usage Time:\n$breakdown",
                                             textAlign = TextAlign.Center
                                         )
+                                    },
+                                    actions = {
+                                        var showMenu by remember { mutableStateOf(false) }
+                                        DropdownMenu(
+                                            expanded = showMenu,
+                                            onDismissRequest = { showMenu = false }
+                                        ) {
+                                            DropdownMenuItems(
+                                                datePickerState = datePickerState,
+                                                mDateFormat = mDateFormat,
+                                                onSelected = { start, end ->
+                                                    beginTime = start
+                                                    endTime = end
+                                                    scope.launch {
+                                                        appUsage.reloadData(
+                                                            context = this@MainActivity,
+                                                            minRange = beginTime,
+                                                            maxRange = endTime
+                                                        )
+                                                    }
+                                                },
+                                                onDismiss = { showMenu = false }
+                                            )
+                                        }
+                                        IconButton(
+                                            onClick = { showMenu = true }
+                                        ) { Icon(Icons.Default.Menu, null) }
                                     }
                                 )
 
@@ -216,7 +255,7 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.fillMaxSize()
                     ) {
                         item {
-                            AnimatedVisibility(isLoading) {
+                            AnimatedVisibility(appUsage.isLoading) {
                                 CircularProgressIndicator()
                             }
                         }
@@ -244,7 +283,10 @@ class MainActivity : ComponentActivity() {
                             appUsage.appList,
                             key = { it.usageStats.packageName }
                         ) {
-                            AppItem(it, Modifier.animateItem())
+                            AppItem(
+                                appInfo = it,
+                                modifier = Modifier.animateItem()
+                            )
                         }
                     }
                 }
@@ -255,14 +297,79 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         lifecycleScope.launch(Dispatchers.IO) {
-            isLoading = true
             appUsage.reloadData(
                 context = this@MainActivity,
                 minRange = beginTime,
                 maxRange = endTime
             )
-        }.invokeOnCompletion { isLoading = false }
+        }
     }
+}
+
+@Suppress("DEPRECATION")
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DropdownMenuItems(
+    datePickerState: DateRangePickerState,
+    mDateFormat: DateFormat,
+    onSelected: (Long, Long) -> Unit,
+    onDismiss: () -> Unit
+) {
+    fun datePresetSelected(
+        start: Long,
+        end: Long
+    ) {
+        datePickerState.setSelection(
+            startDateMillis = start,
+            endDateMillis = end
+        )
+        onSelected(start, end)
+        onDismiss()
+    }
+
+    DropdownMenuItem(
+        onClick = {
+            val start = mDateFormat.let { justDay ->
+                justDay.parse(justDay.format(Date()))
+            }.time
+            val end = System.currentTimeMillis()
+            datePresetSelected(start, end)
+        },
+        text = { Text("Today") }
+    )
+
+    DropdownMenuItem(
+        onClick = {
+            val start = mDateFormat.let { justDay ->
+                justDay.parse(justDay.format(Date()))
+            }.time - 7.days.inWholeMilliseconds
+            val end = System.currentTimeMillis()
+            datePresetSelected(start, end)
+        },
+        text = { Text("Week") }
+    )
+
+    DropdownMenuItem(
+        onClick = {
+            val start = mDateFormat.let { justDay ->
+                justDay.parse(justDay.format(Date().apply { month -= 1 }))
+            }.time
+            val end = System.currentTimeMillis()
+            datePresetSelected(start, end)
+        },
+        text = { Text("Month") }
+    )
+
+    DropdownMenuItem(
+        onClick = {
+            val start = mDateFormat.let { justDay ->
+                justDay.parse(justDay.format(Date().apply { year -= 1 }))
+            }.time
+            val end = System.currentTimeMillis()
+            datePresetSelected(start, end)
+        },
+        text = { Text("Year") }
+    )
 }
 
 @Composable
@@ -318,6 +425,7 @@ private fun AppItem(appInfo: AppInfo, modifier: Modifier = Modifier) {
 }
 
 class AppUsage {
+    var isLoading by mutableStateOf(true)
     var totalTime by mutableLongStateOf(0)
     val appList = mutableStateListOf<AppInfo>()
 
@@ -338,6 +446,7 @@ class AppUsage {
         minRange: Long = System.currentTimeMillis() - 1000 * 3600 * 24,
         maxRange: Long = System.currentTimeMillis()
     ) {
+        isLoading = true
         totalWifiSent = 0
         totalWifiReceived = 0
         totalMobileSent = 0
@@ -385,6 +494,7 @@ class AppUsage {
                 this.appList.clear()
                 this.appList.addAll(it)
             }
+        isLoading = false
     }
 
     @Suppress("DEPRECATION")
