@@ -21,9 +21,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.TwoWayConverter
 import androidx.compose.animation.core.animateValueAsState
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -32,6 +30,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AppBlocking
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.BottomAppBar
@@ -72,7 +71,6 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
-import com.google.accompanist.drawablepainter.rememberDrawablePainter
 import com.programmersbox.appusage.ui.theme.AppUsageTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -101,6 +99,16 @@ class MainActivity : ComponentActivity() {
                 val scope = rememberCoroutineScope()
                 val bottomAppBarScrollBehavior = BottomAppBarDefaults.exitAlwaysScrollBehavior()
 
+                var showBlockedApps by remember { mutableStateOf(false) }
+
+                BlockedApps(
+                    selectBlockedApps = showBlockedApps,
+                    onDismiss = { showBlockedApps = false },
+                    onAppClick = { appUsage.blockedApps.toggle(it) },
+                    appList = appUsage.appList,
+                    blockedApps = appUsage.blockedApps
+                )
+
                 var showDatePicker by remember { mutableStateOf(false) }
                 val datePickerState = rememberDateRangePickerState(
                     initialSelectedStartDateMillis = beginTime,
@@ -127,16 +135,12 @@ class MainActivity : ComponentActivity() {
                                         )
                                     }
                                 }
-                            ) {
-                                Text("Save")
-                            }
+                            ) { Text("Save") }
                         },
                         dismissButton = {
                             TextButton(
                                 onClick = { showDatePicker = false }
-                            ) {
-                                Text("Cancel")
-                            }
+                            ) { Text("Cancel") }
                         }
                     ) {
                         DateRangePicker(
@@ -165,6 +169,11 @@ class MainActivity : ComponentActivity() {
                                 horizontalAlignment = Alignment.CenterHorizontally,
                             ) {
                                 CenterAlignedTopAppBar(
+                                    navigationIcon = {
+                                        IconButton(onClick = { showBlockedApps = true }) {
+                                            Icon(Icons.Default.AppBlocking, null)
+                                        }
+                                    },
                                     title = {
                                         Text(
                                             "Total App Usage Time:\n$breakdown",
@@ -295,7 +304,7 @@ class MainActivity : ComponentActivity() {
                             }
 
                             items(
-                                appUsage.appList,
+                                appUsage.allowedAppList,
                                 key = { it.usageStats.packageName }
                             ) {
                                 AppItem(
@@ -395,16 +404,7 @@ private fun AppItem(appInfo: AppInfo, modifier: Modifier = Modifier) {
     ) {
         ListItem(
             headlineContent = { Text(appInfo.appName) },
-            leadingContent = {
-                Box {
-                    Image(
-                        rememberDrawablePainter(appInfo.icon),
-                        null,
-                        modifier = Modifier.blurGradient()
-                    )
-                    Image(rememberDrawablePainter(appInfo.icon), null)
-                }
-            },
+            leadingContent = { GradientAppIcon(appInfo) },
             overlineContent = { Text(appInfo.usageStats.packageName) },
             trailingContent = { Text("${appInfo.usagePercentage}%") },
             supportingContent = {
@@ -447,7 +447,14 @@ private fun AppItem(appInfo: AppInfo, modifier: Modifier = Modifier) {
 class AppUsage {
     var isLoading by mutableStateOf(true)
     var totalTime by mutableLongStateOf(0)
+    val blockedApps = mutableStateListOf<AppInfo>()
     val appList = mutableStateListOf<AppInfo>()
+
+    val allowedAppList by derivedStateOf {
+        appList.filterNot {
+            blockedApps.any { b -> b.usageStats.packageName == it.usageStats.packageName }
+        }
+    }
 
     var totalMobileSent by mutableLongStateOf(0)
     var totalMobileReceived by mutableLongStateOf(0)
@@ -661,3 +668,5 @@ fun Long.animate() = animateValueAsState(
     TwoWayConverter({ AnimationVector1D(it.toFloat()) }, { it.value.toLong() }),
     label = ""
 ).value
+
+fun <T> MutableList<T>.toggle(item: T) = if (item in this) remove(item) else add(item)

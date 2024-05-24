@@ -1,10 +1,12 @@
 package com.programmersbox.appusage
 
 import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshState
@@ -18,6 +20,31 @@ import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.google.accompanist.drawablepainter.rememberDrawablePainter
+
+@Composable
+fun GradientAppIcon(
+    app: AppInfo,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier.size(64.dp)
+    ) {
+        Image(
+            rememberDrawablePainter(app.icon),
+            null,
+            modifier = Modifier
+                .size(64.dp)
+                .blurGradient()
+        )
+        Image(
+            rememberDrawablePainter(app.icon),
+            null,
+            modifier = Modifier.size(64.dp)
+        )
+    }
+}
 
 fun Modifier.blurGradient(
     blur: Dp = 70.dp,
