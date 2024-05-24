@@ -23,6 +23,7 @@ import androidx.compose.animation.core.TwoWayConverter
 import androidx.compose.animation.core.animateValueAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -248,45 +249,60 @@ class MainActivity : ComponentActivity() {
                         .nestedScroll(bottomAppBarScrollBehavior.nestedScrollConnection)
                         .fillMaxSize()
                 ) { innerPadding ->
-                    LazyColumn(
-                        contentPadding = innerPadding,
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        item {
-                            AnimatedVisibility(appUsage.isLoading) {
-                                CircularProgressIndicator()
+                    CustomPullToRefreshBox(
+                        isRefreshing = appUsage.isLoading,
+                        paddingValues = innerPadding,
+                        onRefresh = {
+                            scope.launch {
+                                appUsage.reloadData(
+                                    context = this@MainActivity,
+                                    minRange = beginTime,
+                                    maxRange = endTime
+                                )
                             }
-                        }
-
-                        if (appUsage.appList.isEmpty()) {
+                        },
+                        enabled = { !appUsage.isLoading }
+                    ) {
+                        LazyColumn(
+                            contentPadding = innerPadding,
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.fillMaxSize()
+                        ) {
                             item {
-                                Card(
-                                    onClick = {
-                                        startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
-                                    }
-                                ) {
-                                    Text(
-                                        text = "Apps Usage May Not Be Enabled. Please Enable It",
-                                        textAlign = TextAlign.Center,
-                                        style = MaterialTheme.typography.titleLarge,
-                                        modifier = Modifier
-                                            .padding(16.dp)
-                                            .align(Alignment.CenterHorizontally)
-                                    )
+                                AnimatedVisibility(appUsage.isLoading) {
+                                    CircularProgressIndicator()
                                 }
                             }
-                        }
 
-                        items(
-                            appUsage.appList,
-                            key = { it.usageStats.packageName }
-                        ) {
-                            AppItem(
-                                appInfo = it,
-                                modifier = Modifier.animateItem()
-                            )
+                            if (appUsage.appList.isEmpty()) {
+                                item {
+                                    Card(
+                                        onClick = {
+                                            startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+                                        }
+                                    ) {
+                                        Text(
+                                            text = "Apps Usage May Not Be Enabled. Please Enable It",
+                                            textAlign = TextAlign.Center,
+                                            style = MaterialTheme.typography.titleLarge,
+                                            modifier = Modifier
+                                                .padding(16.dp)
+                                                .align(Alignment.CenterHorizontally)
+                                        )
+                                    }
+                                }
+                            }
+
+                            items(
+                                appUsage.appList,
+                                key = { it.usageStats.packageName }
+                            ) {
+                                AppItem(
+                                    appInfo = it,
+                                    modifier = Modifier.animateItem()
+                                )
+                            }
                         }
                     }
                 }
@@ -380,10 +396,14 @@ private fun AppItem(appInfo: AppInfo, modifier: Modifier = Modifier) {
         ListItem(
             headlineContent = { Text(appInfo.appName) },
             leadingContent = {
-                Image(
-                    rememberDrawablePainter(appInfo.icon),
-                    null
-                )
+                Box {
+                    Image(
+                        rememberDrawablePainter(appInfo.icon),
+                        null,
+                        modifier = Modifier.blurGradient()
+                    )
+                    Image(rememberDrawablePainter(appInfo.icon), null)
+                }
             },
             overlineContent = { Text(appInfo.usageStats.packageName) },
             trailingContent = { Text("${appInfo.usagePercentage}%") },
