@@ -291,12 +291,9 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
 
-                            if (appUsage.appList.isNotEmpty()) {
+                            if (appUsage.allowedAppList.isNotEmpty()) {
                                 item {
-                                    Chart(
-                                        appUsage.allowedAppList,
-                                        //modifier = Modifier.size(200.dp)
-                                    )
+                                    Chart(appUsage.allowedAppList)
                                 }
                             }
 
