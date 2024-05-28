@@ -40,6 +40,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -283,7 +284,7 @@ fun ChartSheet(
                                     Modifier
                                         .size(16.dp)
                                         .clip(CircleShape)
-                                        .background(categoryColor(it.key.id)),
+                                        .background(categoryColor(it.key.id))
                                 )
                             },
                             selected = it.key.text in filteredCategories,
@@ -295,52 +296,54 @@ fun ChartSheet(
             item(
                 span = { GridItemSpan(maxLineSpan) }
             ) {
-                RowChart(
-                    data = appsList,
-                    barProperties = BarProperties(
-                        cornerRadius = Bars.Data.Radius.Rectangle(
-                            topRight = 6.dp,
-                            bottomRight = 6.dp
+                key(appsList) {
+                    RowChart(
+                        data = appsList,
+                        barProperties = BarProperties(
+                            cornerRadius = Bars.Data.Radius.Rectangle(
+                                topRight = 6.dp,
+                                bottomRight = 6.dp
+                            ),
+                            spacing = 2.dp,
+                            thickness = 20.dp
                         ),
-                        spacing = 2.dp,
-                        thickness = 20.dp
-                    ),
-                    labelHelperProperties = LabelHelperProperties(
-                        false,
-                        textStyle = MaterialTheme.typography.bodyMedium
-                            .copy(fontSize = 12.sp)
-                            .copy(color = MaterialTheme.colorScheme.onSurface)
-                    ),
-                    labelProperties = LabelProperties(
-                        true,
-                        textStyle = MaterialTheme.typography.bodyMedium
-                            .copy(fontSize = 12.sp)
-                            .copy(color = MaterialTheme.colorScheme.onSurface)
-                    ),
-                    indicatorProperties = IndicatorProperties(
-                        true,
-                        textStyle = MaterialTheme.typography.bodyMedium
-                            .copy(fontSize = 12.sp)
-                            .copy(color = MaterialTheme.colorScheme.onSurface)
-                    ) { getDurationBreakdown(it.roundToLong()) },
-                    popupProperties = PopupProperties(
-                        false,
-                        textStyle = MaterialTheme.typography.bodyMedium
-                            .copy(fontSize = 12.sp)
-                            .copy(color = MaterialTheme.colorScheme.onSurface),
-                        contentBuilder = { getDurationBreakdown(it.roundToLong()) }
-                    ),
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                        stiffness = Spring.StiffnessLow
-                    ),
-                    animationMode = AnimationMode.Together { it * 100L },
-                    animationDelay = 300,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                        .height((DEFAULT_ROW_HEIGHT + ((ROW_HEIGHT_400 / 9) * appsList.size)).dp)
-                )
+                        labelHelperProperties = LabelHelperProperties(
+                            false,
+                            textStyle = MaterialTheme.typography.bodyMedium
+                                .copy(fontSize = 12.sp)
+                                .copy(color = MaterialTheme.colorScheme.onSurface)
+                        ),
+                        labelProperties = LabelProperties(
+                            true,
+                            textStyle = MaterialTheme.typography.bodyMedium
+                                .copy(fontSize = 12.sp)
+                                .copy(color = MaterialTheme.colorScheme.onSurface)
+                        ),
+                        indicatorProperties = IndicatorProperties(
+                            true,
+                            textStyle = MaterialTheme.typography.bodyMedium
+                                .copy(fontSize = 12.sp)
+                                .copy(color = MaterialTheme.colorScheme.onSurface)
+                        ) { getDurationBreakdown(it.roundToLong()) },
+                        popupProperties = PopupProperties(
+                            false,
+                            textStyle = MaterialTheme.typography.bodyMedium
+                                .copy(fontSize = 12.sp)
+                                .copy(color = MaterialTheme.colorScheme.onSurface),
+                            contentBuilder = { getDurationBreakdown(it.roundToLong()) }
+                        ),
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                            stiffness = Spring.StiffnessLow
+                        ),
+                        animationMode = AnimationMode.Together { it * 100L },
+                        animationDelay = 300,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                            .height((DEFAULT_ROW_HEIGHT + ((ROW_HEIGHT_400 / 9) * appsList.size)).dp)
+                    )
+                }
             }
 
             items(appShowingList) { app ->
@@ -365,6 +368,11 @@ fun ChartSheet(
 
                         Text(
                             app.appName,
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            getDurationBreakdown(app.usageStats.totalTimeInForeground),
+                            style = MaterialTheme.typography.labelSmall,
                             textAlign = TextAlign.Center
                         )
                     }
