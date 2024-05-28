@@ -7,11 +7,13 @@ import android.app.usage.UsageStats
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.graphics.drawable.Drawable
 import android.icu.text.DateFormat
 import android.icu.text.DecimalFormat
 import android.icu.text.SimpleDateFormat
 import android.net.ConnectivityManager
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
@@ -21,21 +23,24 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.TwoWayConverter
 import androidx.compose.animation.core.animateValueAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AppBlocking
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.BottomAppBarDefaults
-import androidx.compose.material3.Card
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePickerDialog
@@ -43,6 +48,7 @@ import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.DateRangePickerState
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -67,6 +73,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -284,9 +291,18 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
 
+                            if (appUsage.appList.isNotEmpty()) {
+                                item {
+                                    Chart(
+                                        appUsage.allowedAppList,
+                                        //modifier = Modifier.size(200.dp)
+                                    )
+                                }
+                            }
+
                             if (appUsage.appList.isEmpty()) {
                                 item {
-                                    Card(
+                                    ElevatedCard(
                                         onClick = {
                                             startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
                                         }
@@ -438,6 +454,18 @@ private fun AppItem(appInfo: AppInfo, modifier: Modifier = Modifier) {
                         }
                     }
                     Text("Times opened: ${appInfo.timesOpened}")
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Box(
+                            Modifier
+                                .size(16.dp)
+                                .clip(CircleShape)
+                                .background(categoryColor(appInfo.category.id)),
+                        )
+                        Text("Category: ${appInfo.category.text}")
+                    }
                 }
             }
         )
@@ -503,6 +531,11 @@ class AppUsage {
                     val usageDuration = getDurationBreakdown(it.totalTimeInForeground)
                     val usagePercentage = (it.totalTimeInForeground * 100 / totalTime)
                     val networkInfo = n.reloadNetworkStats(ai.uid)
+                    val category = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        ai.category
+                    } else {
+                        -1
+                    }
                     AppInfo(
                         appName = name,
                         icon = icon,
@@ -511,7 +544,17 @@ class AppUsage {
                         lastUsed = mDateFormat.format(it.lastTimeUsed),
                         networkInfo = networkInfo,
                         timesOpened = names[it.packageName] ?: 0,
-                        usageStats = it
+                        usageStats = it,
+                        category = CategoryInformation(
+                            id = category,
+                            text = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                ApplicationInfo.getCategoryTitle(context, category)
+                                    ?.toString()
+                                    ?: "Undefined"
+                            } else {
+                                "Undefined"
+                            }
+                        ),
                     )
                 }
                     .onFailure { it.printStackTrace() }
@@ -633,7 +676,13 @@ data class AppInfo(
     val lastUsed: String,
     val timesOpened: Int,
     val networkInfo: NetworkInfo,
-    val usageStats: UsageStats
+    val usageStats: UsageStats,
+    val category: CategoryInformation
+)
+
+data class CategoryInformation(
+    val id: Int,
+    val text: String,
 )
 
 data class NetworkInfo(
