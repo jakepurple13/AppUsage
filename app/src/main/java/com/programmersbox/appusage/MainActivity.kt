@@ -65,6 +65,7 @@ import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -293,7 +294,9 @@ class MainActivity : ComponentActivity() {
 
                             if (appUsage.allowedAppList.isNotEmpty()) {
                                 item {
-                                    Chart(appUsage.allowedAppList)
+                                    key(appUsage.allowedAppList) {
+                                        Chart(appUsage.allowedAppList)
+                                    }
                                 }
                             }
 
@@ -547,9 +550,9 @@ class AppUsage {
                             text = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                                 ApplicationInfo.getCategoryTitle(context, category)
                                     ?.toString()
-                                    ?: "Undefined"
+                                    ?: "Other"
                             } else {
-                                "Undefined"
+                                "Other"
                             }
                         ),
                     )

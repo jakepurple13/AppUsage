@@ -1,7 +1,7 @@
 [versions]
 accompanistDrawablepainter = "0.35.1-alpha"
 agp = "8.6.0-alpha03"
-composecharts = "0.0.3"
+composecharts = "0.0.4"
 kotlin = "2.0.0"
 coreKtx = "1.13.1"
 junit = "+"
